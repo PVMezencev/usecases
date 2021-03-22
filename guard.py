@@ -45,6 +45,7 @@ async def voice():
     if SAID:
         return
     COUNTER += 1
+    await asyncio.sleep(1.5)
     if COUNTER % 2 == 0:
         cmd = 'echo "Я спрашиваю кто тут?" | RHVoice-client -s Pavel  | aplay'
     else:

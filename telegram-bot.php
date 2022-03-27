@@ -63,7 +63,8 @@ if (isset($_GET['req_type']) && $_GET['req_type'] == 'cron') {
         $tgLog = new TgLog($botKey, $handler);
         
         $messageText = $post->{'text'};
-        if (count($img_urls) > 1 || (strlen($messageText) > 1024 && count($img_urls) != 0)) {
+         if (count($img_urls) > 1) {
+            
         
             $sendMessage = new SendMessage();
             $sendMessage->chat_id = $chatId;
@@ -87,8 +88,9 @@ if (isset($_GET['req_type']) && $_GET['req_type'] == 'cron') {
                         $message_id = $sendedMsg->message_id;
                         $sendMediaGroup->reply_to_message_id = $message_id;
                         $promise = $tgLog->performApiRequest($sendMediaGroup);
-                    } catch (Exception $e) {
-                        
+                    } catch (Exception $e) {// Onoes, an exception occurred...
+                            echo 'Exception ' . get_class($exception) . ' $sendMediaGroup, message: ' . $exception->getMessage() . PHP_EOL;
+                            return;
                     }
         
                     $promise->then(
@@ -97,7 +99,7 @@ if (isset($_GET['req_type']) && $_GET['req_type'] == 'cron') {
                         },
                         static function (\Exception $exception) {
                             // Onoes, an exception occurred...
-                            echo 'Exception ' . get_class($exception) . ' caught, message: ' . $exception->getMessage() . PHP_EOL;
+                            echo 'Exception ' . get_class($exception) . ' $promise->then, message: ' . $exception->getMessage() . PHP_EOL;
                             return;
                         }
                     );
@@ -105,7 +107,7 @@ if (isset($_GET['req_type']) && $_GET['req_type'] == 'cron') {
         
                 static function (\Exception $exception) {
                     // Onoes, an exception occurred...
-                    echo 'Exception ' . get_class($exception) . ' caught, message: ' . $exception->getMessage() . PHP_EOL;
+                    echo 'Exception ' . get_class($exception) . ' $firstMessagePromise->then, message: ' . $exception->getMessage() . PHP_EOL;
                     return;
                 }
             );
@@ -115,26 +117,69 @@ if (isset($_GET['req_type']) && $_GET['req_type'] == 'cron') {
             
         
         } else if (count($img_urls) == 1) {
+            if ((strlen($messageText) > 1024)) {
+                // Caption для фото не принимает текст более 1024 символов, по этому отправиом по одному.
+                $sendMessage = new SendMessage();
+                $sendMessage->chat_id = $chatId;
+                $sendMessage->text = $messageText;
+                
+                $firstMessagePromise = $tgLog->performApiRequest($sendMessage);
+                $loop->run();
+                
+                $firstMessagePromise->then(
+                    static function (Message $sendedMsg) use ($tgLog, $img_urls, $chatId) {
+                
+                        $sendPhoto = new SendPhoto();
+                        $sendPhoto->chat_id = $chatId;
+                        $sendPhoto->photo = $img_urls[0];
+                        $message_id = $sendedMsg->message_id;
+                        $sendPhoto->reply_to_message_id = $message_id;
+                        $promise = $tgLog->performApiRequest($sendPhoto);
+                        
+                        $promise->then(
+                            static function ($response) {
+                                echo('ok');
+                            },
+                            static function (\Exception $exception) {
+                                // Onoes, an exception occurred...
+                                echo 'Exception ' . get_class($exception) . ' $promise->then, message: ' . $exception->getMessage() . PHP_EOL;
+                                return;
+                            }
+                        );
+                    },
+            
+                    static function (\Exception $exception) {
+                        // Onoes, an exception occurred...
+                        echo 'Exception ' . get_class($exception) . ' $firstMessagePromise->then, message: ' . $exception->getMessage() . PHP_EOL;
+                        return;
+                    }
+                );
+                
         
-            $sendPhoto = new SendPhoto();
-            $sendPhoto->chat_id = $chatId;
-            $sendPhoto->photo = $img_urls[0];
-            $sendPhoto->caption = $messageText;
+                $loop->run();
+                
+            } else {
         
-            $promise = $tgLog->performApiRequest($sendPhoto);
-        
-            $promise->then(
-                function ($response) {
-                    echo('ok');
-                },
-                function (\Exception $exception) {
-                    // Onoes, an exception occurred...
-                    echo 'Exception ' . get_class($exception) . ' caught, message: ' . $exception->getMessage();
-                    return;
-                }
-            );
-        
-            $loop->run();
+                $sendPhoto = new SendPhoto();
+                $sendPhoto->chat_id = $chatId;
+                $sendPhoto->photo = $img_urls[0];
+                $sendPhoto->caption = $messageText;
+            
+                $promise = $tgLog->performApiRequest($sendPhoto);
+            
+                $promise->then(
+                    function ($response) {
+                        echo('ok');
+                    },
+                    function (\Exception $exception) {
+                        // Onoes, an exception occurred...
+                        echo 'Exception ' . get_class($exception) . ' caught, message: ' . $exception->getMessage();
+                        return;
+                    }
+                );
+            
+                $loop->run();
+            }
         
         
         } else {
